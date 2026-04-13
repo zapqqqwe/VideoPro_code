@@ -26,13 +26,27 @@ MAX_IMAGE_RESOLUTION = 748
 EPS = 1
 
 
-client1 = OpenAI(api_key="", base_url="http://0.0.0.0:8006/v1")
+client1 = OpenAI(api_key="", base_url="http://0.0.0.0:8007/v1")
+
+
+def get_oai_chat_response(prompt: str, model: str = "qwen3vl") -> str:
+    """General-purpose text-only chat response."""
+    response = client1.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
+    )
+    result = response.choices[0].message.content if response.choices else ""
+    return result
 
 
 def get_oai_chat_response_qwen3(prompt: str) -> str:
     print(prompt)
     response = client1.chat.completions.create(
-        model="qwen3",
+        model="qwen3vl",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt},

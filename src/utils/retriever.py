@@ -658,3 +658,7 @@ class RetrievalManager:
         result = [subtitles_with_time[i] for i in top_k_indices]
         intervals = [(row[0], row[1]) for row in result]
         return intervals
+
+
+# Alias for backward compatibility
+Retrieval_Manager = RetrievalManager

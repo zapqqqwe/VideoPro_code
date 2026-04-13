@@ -184,7 +184,7 @@ class AnalysisManager:
             api_key="",
             base_url="http://localhost:8007/v1",
         )
-        self.model_name = "Qwen2.5-7B-Instruct"
+        self.model_name = "qwen3vl"
 
         self.gdino_cfg_path = (
             "models/Grounded-SAM-2/grounding_dino/groundingdino/config/"

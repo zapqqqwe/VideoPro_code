@@ -5,17 +5,13 @@
 <a href="https://arxiv.org/abs/2509.17743">
 <img src='https://img.shields.io/badge/arXiv-2509.17743-blue' alt='Paper PDF'></a>
 
-<!-- <a href="https://lichenglin.github.io/VideoPro/">
-<img src='https://img.shields.io/badge/Website-project page-orange' alt='Project Page'></a> -->
-
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-VideoPro_Model-yellow)](https://huggingface.co/zapqqqwe/videopro_grpo)
-<!-- [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-VideoPro_Dataset-yellow)](https://huggingface.co/datasets/lichenglin/VideoPro) -->
 
 </div>
 
 
 ## 🔥 News
-- [2026/04/12] 🔥🔥 We release the code, model, and dataset of **VideoPro**!
+- [2026/04/12] 🔥🔥 We release the code and model of **VideoPro**!
 
 
 ## Introduction
@@ -26,7 +22,7 @@ We propose <b>VideoPro</b>, a unified framework for long-video understanding wit
 
 ### ✨ Highlights:
 
-- **Adaptive Query-level Routing**: Dynamically routes each query to either native VideoLLM reasoning (for simple or high-confidence questions) or multi-step visual program reasoning (for complex long-range queries), rather than applying a one-size-fits-all strategy.
+- **Adaptive Query-level Routing**: Dynamically routes each query to either native VideoLLM reasoning (for simple or high-confidence questions) or multi-step visual program reasoning (for complex long-range queries).
 
 - **Executable Visual Programs**: The model generates and executes structured Python programs using a rich video module library, enabling precise temporal grounding and fine-grained visual analysis across long videos.
 
@@ -35,16 +31,46 @@ We propose <b>VideoPro</b>, a unified framework for long-video understanding wit
   - *Bug fix*: fixes failed programs using runtime error logs
   - *Program refinement*: improves low-confidence program reasoning outputs
 
-- **General Video Module Library**: A rich set of callable APIs available within visual programs, including multimodal retrieval, temporal localization (`trim_frames`, `trim_around`, `trim_before`, `trim_after`), object detection (`detect_object`), frame extraction (`extract_frames`), subtitle-based retrieval (`get_subtitle_hints`), and multi-choice QA (`query_mc`, `query_native`, `query_frames`).
+- **General Video Module Library**: A rich set of callable APIs available within visual programs, including multimodal retrieval (`get_informative_clips`), temporal localization (`trim_frames`, `trim_around`, `trim_before`, `trim_after`), object detection (`detect_object`), frame extraction (`extract_frames`), subtitle-based retrieval (`get_subtitle_hints`), and multi-choice QA (`query_mc`, `query_native`, `query_frames`).
 
-- **Two-Stage Training**: Stage 1 — Supervised Fine-Tuning (SFT) samples; Stage 2 — Group Relative Policy Optimization (GRPO) samples covering refinement modes.
+- **Two-Stage Training**: Stage 1 — Supervised Fine-Tuning (SFT) on 7,489 program reasoning samples; Stage 2 — Group Relative Policy Optimization (GRPO) on 6,009 self-refinement samples covering all three refinement modes.
 
 <img alt="image" src="docs/static/images/pipeline.png" />
 
 <img alt="image" src="docs/static/images/results.png" />
 
 
+## 📁 Project Structure
+
+```
+VideoPro/
+├── src/
+│   ├── run.py                  # End-to-end inference pipeline (entry point)
+│   ├── generate_code.py        # Step 1: Generate visual program via VLM
+│   ├── execute_code.py         # Step 2: Execute the generated program
+│   ├── refine_code.py          # Step 3: Self-refine on failure or low confidence
+│   └── utils/
+│       ├── analysis.py         # AnalysisManager: QA, detection, temporal trim APIs
+│       ├── retriever.py        # RetrievalManager: LanguageBind-based clip retrieval
+│       └── video_utils.py      # Video splitting, frame extraction, subtitle parsing
+├── scripts/
+│   ├── train.sh                # Training commands (SFT + GRPO)
+│   └── deploy.sh               # Model deployment command
+├── dataset/
+│   ├── train_sft.jsonl         # SFT training data
+│   └── train_grpo.jsonl        # GRPO training data
+├── models/                     # Model checkpoints (downloaded here)
+├── clips/                      # Video clip cache (auto-created at inference)
+├── docs/                       # Project page (GitHub Pages)
+│   ├── index.html
+│   └── static/images/
+├── requirements.txt
+└── README.md
+```
+
+
 ## 🔥 Set Up Environment
+
 ```bash
 conda create -n videopro python=3.10 -y
 conda activate videopro
@@ -53,26 +79,22 @@ pip install flash_attn==2.8.3 --no-build-isolation
 ```
 
 
-## 🔧 Model and Dataset Preparation
+## 🔧 Model Preparation
 
-#### 1. Model Download
+Download the model from Hugging Face:
+
 ```bash
-huggingface-cli download --resume-download zapqqqwe/videopro_grpo --local-dir ./models/videopro
+huggingface-cli download --resume-download zapqqqwe/videopro_grpo \
+    --local-dir ./models/videopro
 ```
 
-#### 2. Dataset
-
-The dataset includes:
-- `dataset/train_sft.jsonl` — SFT training data (7,489 program reasoning samples)
-- `dataset/train_grpo.jsonl` — GRPO training data (6,009 samples across three refinement modes):
-  - 4,554 low-confidence native answer refinement samples
-  - 580 buggy program fix samples
-  - 875 low-confidence program refinement samples
+The model is based on **Qwen3-VL** (architecture: `Qwen3VLForConditionalGeneration`, hidden size 4096, 36 layers).
 
 
 ## 🚀 Inference
 
-#### Step 1: Deploy the Model
+### Step 1: Deploy the Model
+
 ```bash
 TORCH_SYMM_MEM_DISABLE_MULTICAST=1 \
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
@@ -87,100 +109,85 @@ swift deploy \
     --served_model_name "qwen3vl"
 ```
 
-#### Step 2: Generate Visual Program
+### Step 2: Run the Pipeline
 
-Given a video and a multiple-choice question, the model first plans whether to use native mode or visual program mode, then generates an executable `execute_command` function:
+Use the end-to-end script `src/run.py` for the full pipeline (generate → execute → refine):
 
-```python
-from src.generate_code import infer_video_mcq
-
-result = infer_video_mcq(
-    video_path="/path/to/video.mp4",
-    question="What is the person doing in the video?",
-    options=["Cooking in the kitchen", "Playing guitar", "Riding a bicycle", "Swimming in a pool"],
-)
-# result["output_text"] contains <planning>...</planning><code>...</code>
+```bash
+python src/run.py \
+    --video /path/to/video.mp4 \
+    --question "What is the person doing in the video?" \
+    --choices "A. Cooking in the kitchen" "B. Playing guitar" \
+              "C. Riding a bicycle" "D. Swimming in a pool" \
+    --clip_save_folder ./clips \
+    --clip_duration 10
 ```
 
-The model outputs a structured response:
+Output:
 ```
-<planning>
-  Judge whether native VideoLLM or visual program reasoning is appropriate.
-</planning>
+[1/3] Generating visual program ...
+[2/3] Executing visual program ...
+[3/3] No refinement needed.
 
-<code>
-def execute_command(video_path, question, choices, duration):
-    # Visual program using the module library APIs
-    ...
-    return answer
-</code>
+✓ Final answer: 'B'
 ```
 
-#### Step 3: Execute Visual Program
-
-The generated `execute_command` function is executed within a runtime environment that exposes the full video module library:
-
-```python
-from src.execute_code import safe_run_execute_command
-
-output = safe_run_execute_command(
-    code_string=result["output_text"],
-    video_path="/path/to/video.mp4",
-    question="What is the person doing in the video?",
-    choices=["Cooking in the kitchen", "Playing guitar", "Riding a bicycle", "Swimming in a pool"],
-    duration=120,
-    clip_save_folder="./clips",
-    clip_duration=10,
-    workers=8,
-)
-# output["success"], output["result"], output["error"], output["traceback"]
+Optionally save the result to JSON:
+```bash
+python src/run.py --video ... --question ... --choices ... --output result.json
 ```
 
-#### Step 4: Self-Refinement (if needed)
+### How It Works Internally
 
-If the program fails or returns a low-confidence answer, trigger self-refinement. Three refinement modes are supported automatically based on the input:
-
-```python
-from src.refine_code import refine_code
-
-# Mode 1: native refinement (when current_code uses query_native)
-# Mode 2: bug fix (when error_log is provided)
-# Mode 3: general program refinement (otherwise)
-result = refine_code(
-    video_path="/path/to/video.mp4",
-    question="What is the person doing in the video?",
-    choices=["Cooking in the kitchen", "Playing guitar", "Riding a bicycle", "Swimming in a pool"],
-    current_code=output["processed_code"],
-    error_log=output["traceback"],  # pass None if no error
-)
-# result["refined_code"], result["prompt_type"]
 ```
+Video + Question
+      │
+      ▼
+generate_code.py         ← VLM generates <planning> + <code>
+      │
+      │  code_string
+      ▼
+execute_code.py          ← Video split into 10s clips → LanguageBind embeddings
+      │                     → execute_command() runs with full API runtime
+      │
+      ├─ success & native? ──► refine_code.py (native refinement)
+      ├─ execution failed?  ──► refine_code.py (bug fix)
+      └─ success & program  ──► return answer
+```
+
+**Video processing flow inside `execute_code.py`:**
+1. Video is split into 10-second clips using `ffmpeg` (parallel workers)
+2. `RetrievalManager` encodes each clip with **LanguageBind** (video encoder) and the query with **BGE-M3** (text encoder)
+3. Top-k clips are retrieved by cosine similarity and passed to the generated visual program
+4. The program calls APIs from `AnalysisManager` and `RetrievalManager` to reason about the video
 
 
 ## 📑 Video Module Library
 
-The following APIs are available inside the generated `execute_command` function:
+The following APIs are injected into the runtime environment and can be called directly inside the generated `execute_command` function:
 
-| API | Description |
-|---|---|
-| `query_native(video_path, question, choices)` | Direct VideoLLM answer with confidence score |
-| `query_mc(frames, question, choices)` | Multi-choice QA over a list of frames |
-| `query_frames(frames, question)` | Open-ended QA over a list of frames |
-| `query_yn(frames, question)` | Yes/No QA over a list of frames |
-| `get_informative_clips(video_path, query, top_k)` | Retrieve top-k semantically relevant video clips |
-| `extract_frames(video_path, num_frames)` | Uniformly sample frames from a video |
-| `trim_frames(video_path, start, end)` | Extract frames from a specific time range |
-| `trim_around(video_path, timestamp, intervals)` | Extract frames around a timestamp |
-| `trim_before(video_path, timestamp, intervals)` | Extract frames before a timestamp |
-| `trim_after(video_path, timestamp, intervals)` | Extract frames after a timestamp |
-| `detect_object(frame, text)` | Detect objects in a frame with Grounding DINO |
-| `get_subtitle_hints(video_path, question, choices, duration)` | Retrieve and summarize relevant subtitles |
-| `crop(frame, box)` / `crop_left/right/top/bottom(frame)` | Spatial cropping of a frame |
+| API | Module | Description |
+|---|---|---|
+| `query_native(video_path, question, choices)` | Analysis | Direct VideoLLM answer with confidence score |
+| `query_mc(frames, question, choices)` | Analysis | Multi-choice QA over sampled frames |
+| `query_frames(frames, question)` | Analysis | Open-ended QA over sampled frames |
+| `query_yn(frames, question)` | Analysis | Yes/No QA over sampled frames |
+| `get_informative_clips(query, video_path, top_k)` | Retrieval | Retrieve top-k semantically relevant clips via LanguageBind |
+| `extract_frames(video_path, num_frames)` | Video | Uniformly sample frames from a video or clip |
+| `trim_frames(video_path, start, end)` | Analysis | Extract frames from a time range [start, end] |
+| `trim_around(video_path, timestamp, intervals)` | Analysis | Extract frames centered around a timestamp |
+| `trim_before(video_path, timestamp, intervals)` | Analysis | Extract frames in the window before a timestamp |
+| `trim_after(video_path, timestamp, intervals)` | Analysis | Extract frames in the window after a timestamp |
+| `detect_object(frame, text)` | Analysis | Zero-shot object detection with Grounding DINO |
+| `get_subtitle_hints(video_path, question, choices, duration)` | Analysis | Retrieve and summarize relevant subtitles via BGE-M3 |
+| `crop(frame, box)` | Analysis | Crop a frame to a given bounding box |
+| `crop_left/right/top/bottom(frame)` | Analysis | Spatial half-crop of a frame |
 
 
 ## 💻 Training
 
-#### Stage 1: Supervised Fine-Tuning (SFT)
+### Stage 1: Supervised Fine-Tuning (SFT)
+
 ```bash
 FPS_MAX_FRAMES=64 VIDEO_MAX_PIXELS=50176 \
 export NPROC_PER_NODE=8
@@ -211,7 +218,10 @@ swift sft \
     --max_length 200000
 ```
 
-#### Stage 2: Group Relative Policy Optimization (GRPO)
+Training data (`dataset/train_sft.jsonl`): 7,489 program reasoning samples covering native mode and visual program mode.
+
+### Stage 2: Group Relative Policy Optimization (GRPO)
+
 ```bash
 FPS_MAX_FRAMES=64 \
 VIDEO_MAX_PIXELS=50176 \
@@ -252,6 +262,11 @@ swift rlhf \
     --sleep_level 0
 ```
 
+Training data (`dataset/train_grpo.jsonl`): 6,009 self-refinement samples:
+- 4,554 low-confidence native answer refinement samples
+- 580 buggy program fix samples
+- 875 low-confidence program refinement samples
+
 
 ## 📧 Contact
 If you have any comments or questions, please open a new issue or feel free to contact [Chenglin Li](https://scholar.google.com/citations?user=7LlS58IAAAAJ&hl=zh-CN).
@@ -259,9 +274,9 @@ If you have any comments or questions, please open a new issue or feel free to c
 
 ## ⭐ Citation
 ```bibtex
-@article{videopro,
+@article{li2025videopro,
   title={VideoPro: Adaptive Program Reasoning for Long Video Understanding},
-  author={Li, Chenglin and others},
+  author={Li, Chenglin and Han, Feng and Wang, Yikun and Li, Ruilin and Dong, Shuai and Hou, Haowen and Li, Haitao and Chen, Qianglong and Tao, Feng and Tong, Jingqi and others},
   journal={arXiv preprint arXiv:2509.17743},
   year={2025}
 }
