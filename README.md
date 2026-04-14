@@ -386,10 +386,7 @@ swift rlhf \
     --sleep_level 0
 ```
 
-Training data (`dataset/train_grpo.jsonl`): 6,009 self-refinement samples:
-- 4,554 low-confidence native answer refinement samples
-- 580 buggy program fix samples
-- 875 low-confidence program refinement samples
+
 
 
 ## 📧 Contact
