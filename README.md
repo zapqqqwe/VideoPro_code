@@ -119,7 +119,15 @@ export VIDEOPRO_API_BASE="http://0.0.0.0:8007/v1"
 export VIDEOPRO_MODEL="qwen3vl"
 ```
 
-### Step 2: Run the Pipeline
+### Step 2: End-to-End Pipeline with `run.py`
+
+`src/run.py` is the main entry point of the project. It is responsible for:
+
+1. calling `generate_code.py` to generate the initial visual program
+2. calling `execute_code.py` to execute the generated code with the packaged video APIs
+3. checking whether execution failed or confidence is below the threshold
+4. calling `refine_code.py` when refinement is needed
+5. rerunning the refined program and returning the final answer
 
 Use the end-to-end script `src/run.py` for the full pipeline `generate -> execute -> refine`:
 
@@ -160,6 +168,36 @@ Optionally save the result to JSON:
 ```bash
 python src/run.py --video ... --question ... --choices ... --output result.json
 ```
+
+### `run.py` Arguments
+
+```bash
+python src/run.py \
+    --video /path/to/video.mp4 \
+    --question "your question" \
+    --choices "choice 1" "choice 2" "choice 3" "choice 4" \
+    --clip-save-folder ./clips \
+    --clip-duration 10 \
+    --workers 8 \
+    --confidence-threshold 0.75 \
+    --max-refine-rounds 1 \
+    --model qwen3vl \
+    --output result.json
+```
+
+Main arguments:
+
+- `--video`: input video path
+- `--question`: multiple-choice question
+- `--choices`: answer options
+- `--clip-save-folder`: where 10-second clips are cached
+- `--clip-duration`: clip length for splitting and retrieval, default `10`
+- `--workers`: parallel workers for clip preparation
+- `--confidence-threshold`: if final confidence is below this threshold, refinement is triggered
+- `--max-refine-rounds`: maximum number of refinement retries
+- `--model`: served VLM name
+- `--output`: optional JSON output path
+- `--quiet`: suppress verbose logs
 
 
 ## How It Works Internally
