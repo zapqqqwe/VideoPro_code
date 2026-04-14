@@ -30,6 +30,11 @@ VALID_SHORT_ANSWERS = {
 }
 
 
+DEFAULT_API_BASE = os.getenv("VIDEOPRO_API_BASE", "http://0.0.0.0:8007/v1")
+DEFAULT_API_KEY = os.getenv("OPENAI_API_KEY", "EMPTY")
+DEFAULT_MODEL_NAME = os.getenv("VIDEOPRO_MODEL", "qwen3vl")
+
+
 def build_messages_with_local_jpg(
     frames: List[Image.Image],
     question: str,
@@ -172,19 +177,16 @@ def _extract_short_answer_and_confidence(chat_response) -> Tuple[str, float, str
 
 class AnalysisManager:
     def __init__(self, device_qwen: str = "0", retrieval=None):
-        if retrieval is None:
-            raise ValueError("retrieval must not be None.")
-
         self.device_track = "cuda:0"
         self.device_qwen = device_qwen
         self.dtype = torch.float16
         self.retrieval = retrieval
 
         self.llm = OpenAI(
-            api_key="",
-            base_url="http://localhost:8007/v1",
+            api_key=DEFAULT_API_KEY,
+            base_url=DEFAULT_API_BASE,
         )
-        self.model_name = "qwen3vl"
+        self.model_name = DEFAULT_MODEL_NAME
 
         self.gdino_cfg_path = (
             "models/Grounded-SAM-2/grounding_dino/groundingdino/config/"
@@ -201,11 +203,8 @@ class AnalysisManager:
             "models/Grounded-SAM-2/checkpoints/sam2.1_hiera_large.pt"
         )
 
-        model_id = "models/grounding-dino-base"
-        self.gdino_proc = AutoProcessor.from_pretrained(model_id)
-        self.gdino_model = (
-            AutoModelForZeroShotObjectDetection.from_pretrained(model_id).to("cuda")
-        )
+        self.gdino_proc = None
+        self.gdino_model = None
         self.sam2_video_predictor = None
 
     def run_ocr(self, frame: Any) -> str:
@@ -394,7 +393,7 @@ class AnalysisManager:
         ]
 
         chat_response = self.llm.chat.completions.create(
-            model="qwen3vl",
+            model=self.model_name,
             messages=messages,
             n=1,
             temperature=0,
@@ -423,7 +422,7 @@ class AnalysisManager:
         messages = build_messages_with_local_jpg(pil_frames, question)
 
         chat_response = self.llm.chat.completions.create(
-            model="qwen3vl",
+            model=self.model_name,
             messages=messages,
             temperature=0,
             top_p=0.01,
@@ -448,6 +447,8 @@ class AnalysisManager:
         word_number: int = 300,
     ) -> str:
         _ = word_number
+        if self.retrieval is None:
+            raise ValueError("Retrieval manager is required for get_subtitle_hints.")
 
         subtitles = get_subtitles_in_range(video_path, (0, duration))
 
