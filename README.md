@@ -387,11 +387,9 @@ swift rlhf \
 
 
 
-
 ## 📧 Contact
 
-If you have any comments or questions, please open a new issue or feel free to contact [Chenglin Li].
-
+If you have any comments or questions, please open a new issue or feel free to contact [Chenglin Li]).
 
 ## ⭐ Citation
 
