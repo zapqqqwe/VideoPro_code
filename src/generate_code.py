@@ -58,7 +58,7 @@ def build_prompt(question: str, options: Sequence[str]) -> str:
     choices_str = "\n".join(f"{letter}. {option}" for letter, option in zip(letters, options))
     return (
         f"{INSTRUCTION_TEMPLATE}\n\n"
-        f"{RUNTIME_API_REFERENCE}\n\n"
+        # f"{RUNTIME_API_REFERENCE}\n\n"
         f"Question: {question}\n"
         f"Choices:\n{choices_str}\n"
     )
