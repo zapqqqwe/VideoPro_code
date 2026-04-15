@@ -378,7 +378,7 @@ class AnalysisManager:
             "Select the best answer to the following multiple-choice question "
             "based on the video. Respond with only the letter of the correct option.\n"
             f"Question: {query}\n"
-            f"Possible answer choices:\n{choices_str}\n"
+            f"Choices:\n{choices_str}\n"
             "Output a single letter. The best answer is: "
         )
 

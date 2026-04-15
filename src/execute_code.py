@@ -13,6 +13,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable
+import inspect
 
 
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -295,7 +296,7 @@ def process_generated_code(code_string: str) -> str:
 
     ast.parse(raw_code)
     if "def execute_command" not in raw_code:
-        raise ValueError("Generated code must define execute_command(video_path, question, choices, duration).")
+        raise ValueError("Generated code must define execute_command(...).")
     return raw_code
 
 
@@ -357,10 +358,18 @@ def run_execute_command(
         clip_save_folder=clip_save_folder,
         clip_duration=clip_duration,
     )
+    normalized_duration = int(math.ceil(real_duration)) if not duration or duration <= 0 else int(duration)
+    runtime_globals["question"] = question
+    runtime_globals["choices"] = choices
+    runtime_globals["duration"] = normalized_duration
+    runtime_globals["video"] = video_path
     execute_command, processed_code = compile_execute_function(code_string, runtime_globals)
 
-    normalized_duration = int(math.ceil(real_duration)) if not duration or duration <= 0 else int(duration)
-    raw_result = execute_command(video_path, question, choices, normalized_duration)
+    param_count = len(inspect.signature(execute_command).parameters)
+    if param_count <= 2:
+        raw_result = execute_command(video_path, question)
+    else:
+        raw_result = execute_command(video_path, question, choices, normalized_duration)
     result = normalize_model_result(
         raw_result,
         choices=choices,

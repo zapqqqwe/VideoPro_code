@@ -23,7 +23,7 @@ def create_client(
 def build_question_with_choices(question: str, choices: Sequence[str]) -> str:
     letters = [chr(65 + i) for i in range(len(choices))]
     choices_str = "\n".join(f"{letter}. {choice}" for letter, choice in zip(letters, choices))
-    return f"Question: {question}\nPossible answer choices:\n{choices_str}"
+    return f"Question: {question}\nChoices:\n{choices_str}"
 
 
 def extract_refined_code(output_text: str) -> str:
@@ -39,7 +39,7 @@ def extract_refined_code(output_text: str) -> str:
         return fenced.group(1).strip()
 
     function_match = re.search(
-        r"def\s+execute_command\s*\(\s*video_path\s*,\s*question\s*,\s*choices\s*,\s*duration\s*\)\s*:(.*)",
+        r"def\s+execute_command\s*\(\s*(?:video_path|video)\s*,\s*question(?:\s*,\s*choices\s*,\s*duration)?\s*\)\s*:(.*)",
         output_text,
         flags=re.DOTALL,
     )
@@ -66,58 +66,78 @@ def build_refine_prompt(
 
     if error_log:
         prompt_type = "bug_fix"
-        instruction = f"""
-You will receive a video multiple-choice question, a buggy visual program, and a runtime error log.
-Rewrite the program so that it runs correctly with the provided runtime APIs.
-Return only a <code> block containing a single execute_command function.
+        instruction = """
+You will receive a multiple-choice question about a video and a Python visual program in the
+execute_command format, and a runtime error log from running this program.
+{question_with_choices}
+Buggy visual program: {current_code}
+Runtime error log: {error_log}
+Refine this visual program by fixing the bugs.
 """.strip()
     elif "query_native" in current_code and confidence < confidence_threshold:
         prompt_type = "native_low_confidence"
-        instruction = f"""
-You will receive a native-mode visual program whose confidence ({confidence:.3f}) is below the threshold ({confidence_threshold:.3f}).
-Refine it into a stronger visual program when helpful. You may stay with native mode only if you also improve robustness.
-Return only a <code> block containing a single execute_command function.
+        instruction = """
+You will receive a multiple-choice question about a video and an existing visual program that only
+uses the native-mode helper API query_native.
+{question_with_choices}
+Current native visual program:
+<code>
+{current_code}
+</code>
+Refine this visual program
 """.strip()
     elif confidence < confidence_threshold:
         prompt_type = "program_low_confidence"
-        instruction = f"""
-You will receive a visual program whose execution succeeded but confidence ({confidence:.3f}) is below the threshold ({confidence_threshold:.3f}).
-Improve the reasoning process, evidence gathering, and answer confidence.
-Return only a <code> block containing a single execute_command function.
+        instruction = """
+You will receive a multiple-choice question about a video and an existing visual program.
+{question_with_choices}
+Current visual program: {current_code}
+Refine this visual program to improve its reasoning and correctness
 """.strip()
     else:
         prompt_type = "general_refine"
         instruction = """
-You will receive a video multiple-choice question and an existing visual program.
-Improve the program while keeping it executable with the provided runtime APIs.
-Return only a <code> block containing a single execute_command function.
+You will receive a multiple-choice question about a video and an existing visual program.
+{question_with_choices}
+Current visual program: {current_code}
+Refine this visual program to improve its reasoning and correctness
 """.strip()
 
+    instruction = instruction.format(
+        question_with_choices=question_block,
+        error_log=(error_log or "").strip(),
+        current_code=current_code.strip(),
+    )
     prompt_parts = [
         instruction,
         "",
         RUNTIME_API_REFERENCE,
-        "",
-        question_block,
-        "",
-        "Current visual program:",
-        f"<code>\n{current_code.strip()}\n</code>",
-        "",
-        "Previous execution result:",
-        previous_result_block,
     ]
 
-    if error_log:
-        prompt_parts.extend(["", "Runtime error log:", error_log.strip()])
+    if prompt_type != "native_low_confidence":
+        prompt_parts.extend(
+            [
+                "",
+                "Current visual program:",
+                f"<code>\n{current_code.strip()}\n</code>",
+            ]
+        )
+
+    if previous_result:
+        prompt_parts.extend(["", "Previous execution result:", previous_result_block])
 
     prompt_parts.extend(
         [
             "",
             "Constraints:",
             "- Do not import anything.",
-            "- Use the input question instead of hard-coding text.",
+            "- Define exactly one function named execute_command.",
+            "- Prefer the signature `def execute_command(video, question):`.",
+            "- Use the input question instead of hard-coding text when possible.",
             "- Prefer robust fallbacks.",
-            "- Return a result dict from query_native/query_mc/query_frames/query_yn or make_result(...).",
+            "- Return `answer` from the function body.",
+            "- `choices` and `duration` are available in the execution environment.",
+            "- Return only the requested tagged/code content, with no extra prose.",
         ]
     )
 

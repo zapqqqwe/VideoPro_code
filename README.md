@@ -203,7 +203,7 @@ Main arguments:
 ## How It Works Internally
 
 ```text
-Video + Question
+    Query
       │
       ▼
 generate_code.py         ← VLM generates <planning> + <code>
@@ -230,22 +230,22 @@ execute_code.py          ← Video split into 10s clips → LanguageBind embeddi
 
 ## 📑 Video Module Library
 
-The following APIs are injected into the runtime environment and can be called directly inside the generated `execute_command` function:
+The following APIs are injected into the runtime environment and can be called directly inside the generated `execute_command` function. Prompts now guide the model to write `def execute_command(video, question):`, while the executor remains backward-compatible with the older 4-argument form.
 
 | API | Module | Description |
 |---|---|---|
-| `query_native(video_path, question, choices)` | Analysis | Direct VideoLLM answer with confidence score |
+| `query_native(video, question, choices)` | Analysis | Direct VideoLLM answer with confidence score |
 | `query_mc(frames, question, choices)` | Analysis | Multi-choice QA over sampled frames |
 | `query_frames(frames, question)` | Analysis | Open-ended QA over sampled frames |
 | `query_yn(frames, question)` | Analysis | Yes/No QA over sampled frames |
-| `get_informative_clips(video_path, query, top_k=3, total_duration=None)` | Retrieval | Retrieve top-k semantically relevant clips via LanguageBind |
-| `extract_frames(video_path, num_frames)` | Video | Uniformly sample frames from a video or clip |
-| `trim_frames(video_path, start, end)` | Analysis | Extract frames from a time range `[start, end]` |
-| `trim_around(video_path, timestamp, intervals)` | Analysis | Extract frames centered around a timestamp |
-| `trim_before(video_path, timestamp, intervals)` | Analysis | Extract frames in the window before a timestamp |
-| `trim_after(video_path, timestamp, intervals)` | Analysis | Extract frames in the window after a timestamp |
+| `get_informative_clips(video, query, top_k=3, total_duration=None)` | Retrieval | Retrieve top-k semantically relevant clips via LanguageBind |
+| `extract_frames(video, num_frames)` | Video | Uniformly sample frames from a video or clip |
+| `trim_frames(video, start, end)` | Analysis | Extract frames from a time range `[start, end]` |
+| `trim_around(video, timestamp, intervals)` | Analysis | Extract frames centered around a timestamp |
+| `trim_before(video, timestamp, intervals)` | Analysis | Extract frames in the window before a timestamp |
+| `trim_after(video, timestamp, intervals)` | Analysis | Extract frames in the window after a timestamp |
 | `detect_object(frame, text)` | Analysis | Zero-shot object detection with Grounding DINO |
-| `get_subtitle_hints(video_path, question, choices, duration)` | Analysis | Retrieve and summarize relevant subtitles via BGE-M3 |
+| `get_subtitle_hints(video, question, choices, duration)` | Analysis | Retrieve and summarize relevant subtitles via BGE-M3 |
 | `crop(frame, box)` | Analysis | Crop a frame to a given bounding box |
 | `crop_left/right/top/bottom(frame)` | Analysis | Spatial half-crop of a frame |
 | `make_result(answer, confidence, raw_output, **metadata)` | Runtime | Return a structured result for the executor |
