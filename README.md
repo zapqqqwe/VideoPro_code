@@ -279,7 +279,6 @@ python src/generate_code.py \
 ```
 
 ### Execute only
-
 ```bash
 python src/execute_code.py \
     --video /path/to/video.mp4 \
