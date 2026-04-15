@@ -390,7 +390,7 @@ swift rlhf \
 
 ## 📧 Contact
 
-If you have any comments or questions, please open a new issue or feel free to contact [Chenglin Li](https://scholar.google.com/citations?user=7LlS58IAAAAJ&hl=zh-CN).
+If you have any comments or questions, please open a new issue or feel free to contact [Chenglin Li].
 
 
 ## ⭐ Citation
