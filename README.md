@@ -296,7 +296,7 @@ python src/execute_code.py \
 ```bash
 python src/refine_code.py \
     --video /path/to/video.mp4 \
-    --question "What is the person doing in the video?" \
+    --question "What is the person doing in the video? " \
     --choices "Cooking in the kitchen" "Playing guitar" \
               "Riding a bicycle" "Swimming in a pool" \
     --code-file generation.py \
